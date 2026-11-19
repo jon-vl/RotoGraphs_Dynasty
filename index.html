@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RotoGraphs Dynasty Rankings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* ── Brand tokens ── */
+  :root {
+    --rg-brown: #825a3f;
+    --rg-brown-light: #f4ede7;
+    --fg-green: #50ae26;
+    --fg-purple: #7c4d85;
+    --fg-blue: #336699;
+    --neg: #b23b3b;
+    --ink: #222;
+    --muted: #666;
+    --line: #e2e2e2;
+    --row-alt: #fafafa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { font-family: "Lato", Helvetica, Arial, sans-serif; color: var(--ink); font-size: 14px; }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 12px 10px 8px; }
+
+  /* ── Header ── */
+  h1 { margin: 0; font-size: 22px; font-weight: 900; color: var(--rg-brown); }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .proj { display: flex; align-items: center; gap: 6px; }
+  .proj-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .proj .chip { display: inline-flex; align-items: center; gap: 5px; }
+  .proj .chip svg { width: 13px; height: 13px; }
+
+  /* ── Controls ── */
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .search {
+    flex: 1 1 200px; min-width: 160px; padding: 7px 10px; font: inherit;
+    border: 1px solid #ccc; border-radius: 0;
+  }
+  .search:focus { outline: 2px solid var(--rg-brown); outline-offset: -1px; border-color: var(--rg-brown); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip {
+    font: inherit; font-size: 12px; font-weight: 700; padding: 5px 9px; cursor: pointer;
+    border: 1px solid var(--rg-brown); border-radius: 0; background: #fff; color: var(--rg-brown);
+  }
+  .chip[aria-pressed="true"] { background: var(--rg-brown); color: #fff; }
+  .count { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+  /* ── Table ── */
+  .scroller {
+    height: var(--table-height, 1180px); overflow: auto;
+    border: 1px solid var(--line); border-top: 3px solid var(--rg-brown);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; z-index: 2; background: var(--rg-brown); color: #fff;
+    font-weight: 700; font-size: 12px; text-align: left; padding: 8px 8px; white-space: nowrap;
+    cursor: pointer; user-select: none;
+  }
+  thead th.num { text-align: right; }
+  thead th .arrow { opacity: .55; font-size: 10px; margin-left: 3px; }
+  thead th.sorted .arrow { opacity: 1; }
+  tbody td { padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  tbody tr.player:nth-of-type(4n+1) td { background: var(--row-alt); }
+  tbody tr.player { cursor: pointer; }
+  tbody tr.player:hover td { background: var(--rg-brown-light); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.rank { font-weight: 900; color: var(--rg-brown); width: 44px; }
+  td.name { font-weight: 700; }
+  td.name a { color: inherit; text-decoration: none; }
+  td.name a:hover { color: var(--rg-brown); text-decoration: underline; }
+  td.name .caret { display: inline-block; width: 12px; color: #aaa; font-size: 10px; }
+  tr.open td.name .caret { color: var(--rg-brown); }
+  .neg { color: var(--neg); }
+  .muted { color: var(--muted); }
+
+  /* ── Expanded detail row ── */
+  tr.detail td { background: #fff !important; padding: 10px 12px 14px; cursor: default; }
+  .detail-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .legend { font-size: 12px; color: var(--muted); display: flex; gap: 14px; align-items: center; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .yr-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .yr-table th, .yr-table td { padding: 3px 4px; text-align: right; border-bottom: 1px solid #f0f0f0; }
+  .yr-table th:first-child, .yr-table td:first-child { text-align: left; color: var(--muted); font-weight: 700; }
+  .yr-table thead th { color: var(--muted); font-weight: 700; background: none; position: static; cursor: default; }
+
+  /* ── Footer ── */
+  .foot { font-size: 11px; color: #888; margin-top: 6px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+  .msg { padding: 30px; text-align: center; color: var(--muted); }
+
+  /* ── Mobile: drop secondary columns ── */
+  @media (max-width: 620px) {
+    .hide-sm { display: none; }
+    h1 { font-size: 19px; }
+    thead th, tbody td { padding-left: 5px; padding-right: 5px; }
+    td.rank { width: 34px; }
+    body { font-size: 13px; }
+    td.name a { color: inherit; text-decoration: none; }
+  td.name a:hover { color: var(--rg-brown); text-decoration: underline; }
+  td.name .caret { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1 id="title"></h1>
+    <div class="proj">
+      <span class="proj-label">Projections</span>
+      <div class="chips" id="projChips"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <input class="search" id="search" type="search" placeholder="Search players…" aria-label="Search players">
+    <div class="chips" id="posChips"></div>
+  </div>
+  <div class="controls">
+    <div class="chips" id="typeChips"></div>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="scroller" id="scroller">
+    <table>
+      <thead><tr id="headRow"></tr></thead>
+      <tbody id="body"><tr><td class="msg" colspan="8">Loading rankings…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    <span id="caption"></span>
+    <span>Click a name for its FanGraphs page · Click a row for year-by-year values</span>
+  </div>
+</div>
+
+<script>
+// ── Config — edit these per update ──────────────────────────────────────
+const CONFIG = {
+  // One entry per projection system — add more later, e.g.
+  // { label: "ZiPS", file: "preseason_zips.csv" }
+  projections: [
+    { label: "Steamer", file: "preseason_steamer.csv" }
+  ],
+  title:    "2027 Dynasty Rankings",
+  caption:  "Source: FanGraphs, Steamer · Jon Vander Lugt, RotoGraphs",
+  tableHeight: 1180                          // px; iframe height ≈ this + ~170
+};
+
+// ── Column map — CSV header names from the R export ─────────────────────
+const COL = {
+  name: "Name", id: "Player ID", pos: "Position", role: "Role", age: "Age",
+  total: "Total Value", disc: "Discounted Total",
+  rankRaw: "Rank (Raw)", rankDisc: "Rank (Discounted)",
+  source: "Source", listSource: "List Source"
+};
+
+// ── CSV parser — handles quoted and unquoted fields, CRLF ───────────────
+function parseCSV(text) {
+  const rows = []; let row = []; let field = ""; let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(v => v.trim() !== ""));
+}
+
+// ── Formatters ──────────────────────────────────────────────────────────
+// Parse "$X.XX" / "-$X.XX" / "UD" back to numbers; display uses accounting style
+const parseDollar = s => {
+  const t = String(s ?? "").replace(/[$,\s]/g, "");
+  return t === "" || t === "UD" || t === "NA" ? null : Number(t);
+};
+const fmtDollar = v => v == null ? "UD"
+  : (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// FanGraphs player page — works for MLB ids (27769) and minor-league ids (sa3022894)
+const slug = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  .replace(/[.']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const fgUrl = p => p.fgId && !["UD", "NA"].includes(p.fgId) ? `https://www.fangraphs.com/players/${slug(p.name)}/${encodeURIComponent(p.fgId)}/stats` : null;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ── State ───────────────────────────────────────────────────────────────
+let players = [], valueYears = [], openId = null;
+const state = { q: "", pos: "All", type: "All", sortKey: "rankDisc", sortDir: 1 };
+
+// ── Table columns ───────────────────────────────────────────────────────
+const COLUMNS = [
+  { key: "rankDisc", label: "Rank",       num: true,  cls: "rank" },
+  { key: "name",     label: "Player",     num: false, cls: "name" },
+  { key: "pos",      label: "Pos",        num: false },
+  { key: "age",      label: "Age",        num: true },
+  { key: "disc",     label: "Dynasty $",  num: true },
+  { key: "total",    label: "Raw $",      num: true,  hideSm: true },
+  { key: "rankRaw",  label: "Raw Rank",   num: true,  hideSm: true },
+  { key: "trend",    label: "Trend",      num: false, hideSm: true, nosort: true }
+];
+
+// ── Load + shape data ───────────────────────────────────────────────────
+async function load() {
+  document.getElementById("title").textContent = CONFIG.title;
+  document.getElementById("caption").textContent = CONFIG.caption;
+  document.getElementById("scroller").style.setProperty("--table-height", CONFIG.tableHeight + "px");
+
+  buildProjChips();
+  buildHead();
+  await loadData(CONFIG.projections[0].file);
+}
+
+// ── Projection toggle (top right) ───────────────────────────────────────
+const chartIcon = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="9" width="3" height="6"/><rect x="6.5" y="5" width="3" height="10"/><rect x="12" y="1" width="3" height="14"/></svg>`;
+function buildProjChips() {
+  const el = document.getElementById("projChips");
+  el.innerHTML = CONFIG.projections.map((p, i) =>
+    `<button class="chip" data-file="${esc(p.file)}" aria-pressed="${i === 0}">${chartIcon}${esc(p.label)}</button>`).join("");
+  el.onclick = e => {
+    const b = e.target.closest(".chip"); if (!b || b.getAttribute("aria-pressed") === "true") return;
+    el.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b));
+    openId = null;
+    loadData(b.dataset.file);
+  };
+}
+
+// ── Fetch + parse one projection's CSV ──────────────────────────────────
+async function loadData(file) {
+  let text;
+  try {
+    const res = await fetch(file, { cache: "no-cache" });
+    if (!res.ok) throw new Error(res.status);
+    text = await res.text();
+  } catch (e) {
+    document.getElementById("body").innerHTML =
+      `<tr><td class="msg" colspan="8">Couldn't load ${esc(file)}.</td></tr>`;
+    return;
+  }
+
+  const rows = parseCSV(text);
+  const header = rows[0].map(h => h.trim());
+  const idx = h => header.indexOf(h);
+
+  // Year columns detected dynamically — works for 2026–2035, 2027–2036, etc.
+  valueYears = header
+    .map(h => (h.match(/^Value (\d{4})$/) || [])[1])
+    .filter(Boolean);
+
+  players = rows.slice(1).map((r, i) => {
+    const get = h => (idx(h) >= 0 ? (r[idx(h)] ?? "").trim() : "");
+    const raw  = valueYears.map(y => parseDollar(get("Value " + y)));
+    const disc = valueYears.map(y => parseDollar(get("Discounted Value " + y)));
+    const listSrc = get(COL.listSource) || get("list_source");   // older exports used list_source
+    return {
+      id: i,
+      name: get(COL.name),
+      fgId: get(COL.id),
+      pos: get(COL.pos),
+      role: get(COL.role),
+      age: Number(get(COL.age)) || null,
+      total: parseDollar(get(COL.total)),
+      disc: parseDollar(get(COL.disc)),
+      rankRaw: Number(get(COL.rankRaw)) || null,
+      rankDisc: Number(get(COL.rankDisc)) || null,
+      status: get(COL.source) === "Prospect" ? "Prospect" : "Debuted",
+      listSrc,
+      yrRaw: raw, yrDisc: disc
+    };
+  });
+
+  buildChips();
+  render();
+}
+
+// ── Filter chips ────────────────────────────────────────────────────────
+function buildChips() {
+  const order = ["C", "1B", "2B", "3B", "SS", "OF", "DH", "SP", "RP"];
+  const present = new Set(players.flatMap(p => p.pos.split(/[\/;]/)));
+  const positions = ["All", ...order.filter(p => present.has(p))];
+  chipGroup("posChips", positions, "pos");
+  chipGroup("typeChips", ["All", "Hitters", "Pitchers", "Prospects"], "type");
+}
+function chipGroup(id, opts, key) {
+  const el = document.getElementById(id);
+  el.innerHTML = opts.map(o =>
+    `<button class="chip" data-v="${o}" aria-pressed="${state[key] === o}">${o}</button>`).join("");
+  el.onclick = e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    state[key] = b.dataset.v;
+    el.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b));
+    render();
+  };
+}
+
+// ── Header with sort ────────────────────────────────────────────────────
+function buildHead() {
+  const tr = document.getElementById("headRow");
+  tr.innerHTML = COLUMNS.map(c => {
+    const sorted = state.sortKey === c.key;
+    const arrow = c.nosort ? "" : `<span class="arrow">${sorted ? (state.sortDir > 0 ? "▲" : "▼") : "↕"}</span>`;
+    return `<th data-k="${c.key}" class="${c.num ? "num" : ""} ${c.hideSm ? "hide-sm" : ""} ${sorted ? "sorted" : ""}">${c.label}${arrow}</th>`;
+  }).join("");
+  tr.onclick = e => {
+    const th = e.target.closest("th"); if (!th) return;
+    const col = COLUMNS.find(c => c.key === th.dataset.k); if (col.nosort) return;
+    if (state.sortKey === col.key) state.sortDir *= -1;
+    else {
+      state.sortKey = col.key;
+      // Dollars default high→low; ranks/age/text default low→high
+      state.sortDir = ["disc", "total"].includes(col.key) ? -1 : 1;
+    }
+    buildHead(); render();
+  };
+}
+
+// ── Sparkline (raw yearly $) ────────────────────────────────────────────
+function spark(vals) {
+  const w = 80, h = 20, n = vals.length;
+  const nums = vals.map(v => v ?? 0);
+  const max = Math.max(...nums, 1), min = Math.min(...nums, 0);
+  const y = v => h - 2 - ((v - min) / (max - min || 1)) * (h - 4);
+  const pts = nums.map((v, i) => `${(i / (n - 1)) * (w - 4) + 2},${y(v).toFixed(1)}`).join(" ");
+  const zero = min < 0 ? `<line x1="0" x2="${w}" y1="${y(0)}" y2="${y(0)}" stroke="#ccc" stroke-dasharray="2 2"/>` : "";
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${zero}<polyline points="${pts}" fill="none" stroke="#825a3f" stroke-width="1.6"/></svg>`;
+}
+
+// ── Detail row: year-by-year raw vs discounted ──────────────────────────
+function detail(p) {
+  const money = v => `<span class="${v < 0 ? "neg" : ""}">${fmtDollar(v)}</span>`;
+  const list = p.status === "Prospect" && p.listSrc ? ` · ${esc(p.listSrc)} prospect list` : "";
+  return `<tr class="detail"><td colspan="${COLUMNS.length}">
+    <div class="detail-grid">
+      <div class="legend"><span><b>${esc(p.name)}</b> · ${esc(p.pos)} · Age ${p.age ?? "UD"}${list}</span></div>
+      <div style="overflow-x:auto"><table class="yr-table">
+        <thead><tr><th></th>${valueYears.map(y => `<th>${y}</th>`).join("")}</tr></thead>
+        <tbody>
+          <tr><td>Raw $</td>${p.yrRaw.map(v => `<td>${money(v)}</td>`).join("")}</tr>
+          <tr><td>Discounted $</td>${p.yrDisc.map(v => `<td>${money(v)}</td>`).join("")}</tr>
+        </tbody>
+      </table></div>
+    </div>
+  </td></tr>`;
+}
+
+// ── Render ──────────────────────────────────────────────────────────────
+function render() {
+  const q = state.q.toLowerCase();
+  const ascii = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); // "jesus" finds "Jesús"
+  let list = players.filter(p => {
+    if (q && !ascii(p.name).includes(ascii(q))) return false;
+    if (state.pos !== "All" && !p.pos.split(/[\/;]/).includes(state.pos)) return false;
+    switch (state.type) {
+      case "Hitters":   return p.role.includes("Hitter");
+      case "Pitchers":  return p.role.includes("Pitcher");
+      case "Prospects": return p.status === "Prospect";
+    }
+    return true;
+  });
+
+  const k = state.sortKey, d = state.sortDir;
+  list.sort((a, b) => {
+    const av = a[k], bv = b[k];
+    if (av == null) return 1; if (bv == null) return -1;
+    return (typeof av === "string" ? av.localeCompare(bv) : av - bv) * d;
+  });
+
+  document.getElementById("count").textContent = `${list.length} of ${players.length} players`;
+
+  const money = v => `<span class="${v < 0 ? "neg" : ""}">${fmtDollar(v)}</span>`;
+  const html = list.map(p => {
+    const open = p.id === openId;
+    return `<tr class="player ${open ? "open" : ""}" data-id="${p.id}">
+      <td class="num rank">${p.rankDisc ?? "UD"}</td>
+      <td class="name"><span class="caret">${open ? "▼" : "▶"}</span>${fgUrl(p)
+        ? `<a href="${esc(fgUrl(p))}" target="_blank" rel="noopener" title="Open FanGraphs player page">${esc(p.name)}</a>`
+        : esc(p.name)}</td>
+      <td>${esc(p.pos)}</td>
+      <td class="num">${p.age ?? "UD"}</td>
+      <td class="num"><b>${money(p.disc)}</b></td>
+      <td class="num hide-sm muted">${money(p.total)}</td>
+      <td class="num hide-sm muted">${p.rankRaw ?? "UD"}</td>
+      <td class="hide-sm">${spark(p.yrRaw)}</td>
+    </tr>${open ? detail(p) : ""}`;
+  }).join("");
+
+  document.getElementById("body").innerHTML = html ||
+    `<tr><td class="msg" colspan="${COLUMNS.length}">No players match.</td></tr>`;
+}
+
+// ── Events ──────────────────────────────────────────────────────────────
+document.getElementById("search").addEventListener("input", e => { state.q = e.target.value; render(); });
+document.getElementById("body").addEventListener("click", e => {
+  if (e.target.closest("a")) return;   // name link opens FG page; don't expand row
+  const tr = e.target.closest("tr.player"); if (!tr) return;
+  const id = Number(tr.dataset.id);
+  openId = openId === id ? null : id;
+  render();
+});
+
+load();
+</script>
+</body>
+</html>
