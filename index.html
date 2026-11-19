@@ -49,6 +49,13 @@
   }
   .chip[aria-pressed="true"] { background: var(--rg-brown); color: #fff; }
   .count { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .age-filter { display: flex; align-items: center; gap: 5px; }
+  .age-label { font-size: 12px; font-weight: 700; color: var(--rg-brown); }
+  .age-input {
+    width: 58px; padding: 7px 6px; font: inherit; border: 1px solid #ccc; border-radius: 0;
+  }
+  .age-input:focus { outline: 2px solid var(--rg-brown); outline-offset: -1px; border-color: var(--rg-brown); }
+  #posChips .chip { text-align: center; }
 
   /* ── Table ── */
   .scroller {
@@ -120,6 +127,12 @@
 
   <div class="controls">
     <input class="search" id="search" type="search" placeholder="Search players…" aria-label="Search players">
+    <div class="age-filter">
+      <span class="age-label">Age</span>
+      <input class="age-input" id="ageMin" type="number" inputmode="numeric" min="15" max="45" placeholder="Min" aria-label="Minimum age">
+      <span class="muted">–</span>
+      <input class="age-input" id="ageMax" type="number" inputmode="numeric" min="15" max="45" placeholder="Max" aria-label="Maximum age">
+    </div>
     <div class="chips" id="posChips"></div>
   </div>
   <div class="controls">
@@ -146,17 +159,16 @@ const CONFIG = {
   // One entry per projection system — add more later, e.g.
   // { label: "ZiPS", file: "preseason_zips.csv" }
   projections: [
-  { label: "Steamer", file: "preseason_steamer.csv" },
-  { label: "Depth Charts",    file: "preseason_depthcharts.csv" }
-],
+    { label: "Steamer", file: "preseason_steamer.csv" }
+  ],
   title:    "2027 Dynasty Rankings",
-  caption:  "Source: FanGraphs, Steamer · Jon Vander Lugt, RotoGraphs",
-  tableHeight: 1180                          // px; iframe height ≈ this + ~170
+  caption:  "Source: FanGraphs, Baseball America, The Baseball Cube · Jonathan Vander Lugt",
+  tableHeight: 1150                          // px; iframe height ≈ this + ~300 (keep embed at 1450)
 };
 
 // ── Column map — CSV header names from the R export ─────────────────────
 const COL = {
-  name: "Name", id: "Player ID", pos: "Position", role: "Role", age: "Age",
+  name: "Name", id: "Player ID", pos: "Position", elig: "Eligible Positions", role: "Role", age: "Age",
   total: "Total Value", disc: "Discounted Total",
   rankRaw: "Rank (Raw)", rankDisc: "Rank (Discounted)",
   source: "Source", listSource: "List Source"
@@ -192,18 +204,29 @@ const fmtDollar = v => v == null ? "UD"
 const slug = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
   .replace(/[.']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const fgUrl = p => p.fgId && !["UD", "NA"].includes(p.fgId) ? `https://www.fangraphs.com/players/${slug(p.name)}/${encodeURIComponent(p.fgId)}/stats` : null;
+// Last-name sort key: drops suffixes (Jr., II) and keeps surname particles ("De La Cruz")
+const SUFFIXES  = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"]);
+const PARTICLES = new Set(["de", "del", "della", "la", "las", "los", "le", "van", "vander", "von", "da", "das", "do", "dos", "di", "du", "st", "st."]);
+const toAscii = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function sortName(full) {
+  const t = full.trim().split(/\s+/);
+  while (t.length > 2 && SUFFIXES.has(t[t.length - 1].toLowerCase())) t.pop();
+  let i = t.length - 1;
+  while (i > 1 && PARTICLES.has(t[i - 1].toLowerCase())) i--;
+  return toAscii(t.slice(i).join(" ") + ", " + t.slice(0, i).join(" "));
+}
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // ── State ───────────────────────────────────────────────────────────────
 let players = [], valueYears = [], openId = null;
-const state = { q: "", pos: "All", type: "All", sortKey: "rankDisc", sortDir: 1 };
+const state = { q: "", pos: "All", type: "All", ageMin: null, ageMax: null, sortKey: "rankDisc", sortDir: 1 };
 
 // ── Table columns ───────────────────────────────────────────────────────
 const COLUMNS = [
   { key: "rankDisc", label: "Rank",       num: true,  cls: "rank" },
   { key: "name",     label: "Player",     num: false, cls: "name" },
-  { key: "pos",      label: "Pos",        num: false },
-  { key: "age",      label: "Age",        num: true },
+  { key: "pos",      label: "Pos",        num: false, nosort: true },
+  { key: "age",      label: "Age",        num: true,  nosort: true },
   { key: "disc",     label: "Discounted $", num: true }
 ];
 
@@ -263,7 +286,8 @@ async function loadData(file) {
       id: i,
       name: get(COL.name),
       fgId: get(COL.id),
-      pos: get(COL.pos),
+      pos: get(COL.elig) || get(COL.pos),
+      sortName: sortName(get(COL.name)),
       role: get(COL.role),
       age: Number(get(COL.age)) || null,
       total: parseDollar(get(COL.total)),
@@ -286,6 +310,7 @@ function buildChips() {
   const present = new Set(players.flatMap(p => p.pos.split(/[\/;]/)));
   const positions = ["All", ...order.filter(p => present.has(p))];
   chipGroup("posChips", positions, "pos");
+  equalizeChips("posChips");
   chipGroup("typeChips", ["All", "Hitters", "Pitchers", "Prospects"], "type");
 }
 function chipGroup(id, opts, key) {
@@ -298,6 +323,18 @@ function chipGroup(id, opts, key) {
     el.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b));
     render();
   };
+}
+
+// ── Make every button in a group as wide as the widest one ──────────────
+function equalizeChips(id) {
+  const chips = [...document.getElementById(id).querySelectorAll(".chip")];
+  const fit = () => {
+    chips.forEach(c => (c.style.width = ""));
+    const w = Math.max(...chips.map(c => c.getBoundingClientRect().width));
+    chips.forEach(c => (c.style.width = Math.ceil(w) + "px"));
+  };
+  fit();
+  if (document.fonts) document.fonts.ready.then(fit);   // re-measure once Lato finishes loading
 }
 
 // ── Header with sort ────────────────────────────────────────────────────
@@ -346,6 +383,8 @@ function render() {
   let list = players.filter(p => {
     if (q && !ascii(p.name).includes(ascii(q))) return false;
     if (state.pos !== "All" && !p.pos.split(/[\/;]/).includes(state.pos)) return false;
+    if (state.ageMin != null && (p.age == null || p.age < state.ageMin)) return false;
+    if (state.ageMax != null && (p.age == null || p.age > state.ageMax)) return false;
     switch (state.type) {
       case "Hitters":   return p.role.includes("Hitter");
       case "Pitchers":  return p.role.includes("Pitcher");
@@ -356,7 +395,8 @@ function render() {
 
   const k = state.sortKey, d = state.sortDir;
   list.sort((a, b) => {
-    const av = a[k], bv = b[k];
+    const sk = k === "name" ? "sortName" : k;   // Player column sorts by last name
+    const av = a[sk], bv = b[sk];
     if (av == null) return 1; if (bv == null) return -1;
     return (typeof av === "string" ? av.localeCompare(bv) : av - bv) * d;
   });
@@ -383,6 +423,12 @@ function render() {
 
 // ── Events ──────────────────────────────────────────────────────────────
 document.getElementById("search").addEventListener("input", e => { state.q = e.target.value; render(); });
+// Age range — blank box means no limit on that side
+["ageMin", "ageMax"].forEach(id => document.getElementById(id).addEventListener("input", e => {
+  const v = e.target.value.trim();
+  state[id] = v === "" || isNaN(Number(v)) ? null : Number(v);
+  render();
+}));
 document.getElementById("body").addEventListener("click", e => {
   if (e.target.closest("a")) return;   // name link opens FG page; don't expand row
   const tr = e.target.closest("tr.player"); if (!tr) return;
