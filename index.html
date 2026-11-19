@@ -307,7 +307,7 @@ async function loadData(file) {
 
 // ── Filter chips ────────────────────────────────────────────────────────
 function buildChips() {
-  const order = ["C", "1B", "2B", "3B", "SS", "OF", "UT", "DH", "SP", "RP"];   // DH only shows if an older export still has it
+const order = ["C", "1B", "2B", "3B", "SS", "OF", "UT", "DH", "SP", "RP"];
   const present = new Set(players.flatMap(p => p.pos.split(/[\/;]/)));
   const positions = ["All", ...order.filter(p => present.has(p))];
   chipGroup("posChips", positions, "pos");
