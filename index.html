@@ -322,8 +322,9 @@ function chipGroup(id, opts, key) {
     `<button class="chip" data-v="${o}" aria-pressed="${state[key] === o}">${o}</button>`).join("");
   el.onclick = e => {
     const b = e.target.closest(".chip"); if (!b) return;
-    state[key] = b.dataset.v;
-    el.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b));
+    // second click on the active filter turns it off (back to "All")
+    state[key] = b.dataset.v === state[key] ? "All" : b.dataset.v;
+    el.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.v === state[key]));
     render();
   };
 }
