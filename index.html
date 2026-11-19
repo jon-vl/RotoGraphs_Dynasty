@@ -55,7 +55,7 @@
     width: 58px; padding: 7px 6px; font: inherit; border: 1px solid #ccc; border-radius: 0;
   }
   .age-input:focus { outline: 2px solid var(--rg-brown); outline-offset: -1px; border-color: var(--rg-brown); }
-  #posChips .chip { text-align: center; }
+  #posChips .chip, #typeChips .chip { text-align: center; }
 
   /* ── Table ── */
   .scroller {
@@ -133,6 +133,8 @@
       <span class="muted">–</span>
       <input class="age-input" id="ageMax" type="number" inputmode="numeric" min="15" max="45" placeholder="Max" aria-label="Maximum age">
     </div>
+  </div>
+  <div class="controls">
     <div class="chips" id="posChips"></div>
   </div>
   <div class="controls">
@@ -159,12 +161,12 @@ const CONFIG = {
   // One entry per projection system — add more later, e.g.
   // { label: "ZiPS", file: "preseason_zips.csv" }
   projections: [
-  { label: "Steamer", file: "preseason_steamer.csv" },
-  { label: "Depth Charts",    file: "preseason_depthcharts.csv" }
-],
+    { label: "Steamer",      file: "preseason_steamer.csv" },
+    { label: "Depth Charts", file: "preseason_depthcharts.csv" }
+  ],
   title:    "2027 Dynasty Rankings",
   caption:  "Source: FanGraphs, Baseball America, The Baseball Cube · Jonathan Vander Lugt",
-  tableHeight: 1150                          // px; iframe height ≈ this + ~300 (keep embed at 1450)
+  tableHeight: 1130                          // px; iframe height ≈ this + ~300 (keep embed at 1450)
 };
 
 // ── Column map — CSV header names from the R export ─────────────────────
@@ -307,12 +309,12 @@ async function loadData(file) {
 
 // ── Filter chips ────────────────────────────────────────────────────────
 function buildChips() {
-const order = ["C", "1B", "2B", "3B", "SS", "OF", "UT", "DH", "SP", "RP"];
+  const order = ["C", "1B", "2B", "3B", "SS", "OF", "UT", "DH", "SP", "RP"];   // DH only shows if an older export still has it
   const present = new Set(players.flatMap(p => p.pos.split(/[\/;]/)));
   const positions = ["All", ...order.filter(p => present.has(p))];
   chipGroup("posChips", positions, "pos");
-  equalizeChips("posChips");
   chipGroup("typeChips", ["All", "Hitters", "Pitchers", "Prospects"], "type");
+  sizeChipGrid();
 }
 function chipGroup(id, opts, key) {
   const el = document.getElementById(id);
@@ -326,13 +328,22 @@ function chipGroup(id, opts, key) {
   };
 }
 
-// ── Make every button in a group as wide as the widest one ──────────────
-function equalizeChips(id) {
-  const chips = [...document.getElementById(id).querySelectorAll(".chip")];
+// ── Button grid: every position button (and both "All"s) share one width;
+// Hitters / Pitchers / Prospects span exactly two position buttons + the gap,
+// so the two rows line up column for column ─────────────────────────────
+function sizeChipGrid() {
+  const pos  = [...document.querySelectorAll("#posChips .chip")];
+  const type = [...document.querySelectorAll("#typeChips .chip")];
+  const allType = type.filter(c => c.dataset.v === "All");
+  const wide    = type.filter(c => c.dataset.v !== "All");
   const fit = () => {
-    chips.forEach(c => (c.style.width = ""));
-    const w = Math.max(...chips.map(c => c.getBoundingClientRect().width));
-    chips.forEach(c => (c.style.width = Math.ceil(w) + "px"));
+    [...pos, ...type].forEach(c => (c.style.width = ""));
+    const gap = parseFloat(getComputedStyle(document.getElementById("typeChips")).columnGap) || 0;
+    const natural = els => Math.max(...els.map(c => c.getBoundingClientRect().width));
+    // base width = widest single button, or half of the widest wide button (minus the gap), whichever is bigger
+    const unit = Math.ceil(Math.max(natural([...pos, ...allType]), (natural(wide) - gap) / 2));
+    [...pos, ...allType].forEach(c => (c.style.width = unit + "px"));
+    wide.forEach(c => (c.style.width = (unit * 2 + gap) + "px"));
   };
   fit();
   if (document.fonts) document.fonts.ready.then(fit);   // re-measure once Lato finishes loading
